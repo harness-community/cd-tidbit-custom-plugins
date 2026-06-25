@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-plugins-demo
+  labels:
+    app: custom-plugins-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: custom-plugins-demo
+  template:
+    metadata:
+      labels:
+        app: custom-plugins-demo
+    spec:
+      containers:
+        - name: web
+          image: {{.Values.image}}
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: content
+              mountPath: /app/content
+      imagePullSecrets:
+        - name: ghcr-cred
+      volumes:
+        - name: content
+          configMap:
+            name: custom-plugins-content

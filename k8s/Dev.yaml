@@ -1,0 +1,6 @@
+# Values for the Dev environment.
+# Selected automatically when <+env.name> resolves to "Dev".
+env_name: Dev
+env_color: "#0d6efd"
+app_version: <+artifact.version>
+image: <+artifact.image>

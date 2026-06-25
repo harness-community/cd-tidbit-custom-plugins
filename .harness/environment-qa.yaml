@@ -1,0 +1,8 @@
+environment:
+  name: QA
+  identifier: QA
+  tags:
+    custom-plugins: ""
+  type: PreProduction
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}

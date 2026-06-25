@@ -1,0 +1,52 @@
+# Placeholder → `.env` → Consumers
+
+Authoritative map of every `${VAR}` placeholder in `.harness/`: where its value comes from (`.env`) and which files consume it. `scripts/setup.sh` renders these with `envsubst`, restricted to exactly this variable list so that Harness `<+...>` expressions are left untouched.
+
+> Keep this in sync with `.env.example`, `scripts/setup.sh` (the `ENVSUBST_VARS` list), and the `.harness/` files. Referenced from `CLAUDE.md`.
+
+---
+
+## The variables
+
+| Placeholder | `.env` key | Example | Consumed by (`.harness/` files) |
+|---|---|---|---|
+| `${HARNESS_ACCOUNT_ID}` | `HARNESS_ACCOUNT_ID` | `SAn9tg9eRrWyEJyLZ01ibw` | (fill in) |
+| `${HARNESS_ORG}` | `HARNESS_ORG` | `default` | (fill in) |
+| `${HARNESS_PROJECT}` | `HARNESS_PROJECT` | `custom-plugins` | (fill in) |
+
+### `.env` keys with no `${VAR}` placeholder
+
+These drive the script's behavior but are not substituted into any `.harness/` file:
+
+| `.env` key | Used by | Purpose |
+|---|---|---|
+| `HARNESS_API_KEY` | `setup.sh` | `x-api-key` header for all Harness API calls |
+| `CREATE_PROJECT` | `setup.sh` | `true` → create the project; `false` → use existing |
+| `KANBOARD_URL` | `setup.sh` → Harness secret body | Plugin step receives this as env var at run time |
+| `KANBOARD_API_TOKEN` | `setup.sh` → Harness secret body | Plugin step receives this as env var at run time |
+| `KANBOARD_PROJECT_ID`, `KANBOARD_TASK_ID`, `KANBOARD_COL_*` | `setup.sh` → pipeline / env variables | Identify which board, which task, and which column maps to which env |
+
+---
+
+## Rules
+
+1. **Only the placeholders listed above are substituted.** `setup.sh` passes an explicit `ENVSUBST_VARS` list to `envsubst`. Any other `${...}` literal in a `.harness/` file is left as-is (and probably wrong — keep the list tight).
+2. **Harness expressions are not placeholders.** `<+env.name>`, `<+artifact.image>`, `<+input>`, `<+INFRA_KEY_SHORT_ID>`, etc. use angle brackets and are resolved by Harness at run/deploy time — never by envsubst.
+3. **Identifiers are not templated.** Resource identifiers are fixed and account-independent. Only display values, URLs, and account/org/project/username are placeholders.
+4. **Manual pasters must substitute by hand.** Anyone pasting `.harness/` YAML into the Harness UI instead of running `setup.sh` must replace each `${...}` with their own value first.
+
+---
+
+## Verifying a render
+
+```bash
+# Render one file and confirm no stray ${...} remain:
+set -a; source .env; set +a
+envsubst '${HARNESS_ACCOUNT_ID} ${HARNESS_ORG} ${HARNESS_PROJECT}' \
+  < .harness/<some-file>.yaml | grep -n '\${' || echo "clean"
+
+# Sweep all templated files:
+for f in .harness/*.yaml .harness/**/*.yaml; do
+  grep -Hn '\${' "$f"
+done
+```

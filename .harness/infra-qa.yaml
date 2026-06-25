@@ -1,0 +1,15 @@
+infrastructureDefinition:
+  name: QA_Infra
+  identifier: QA_Infra
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  tags:
+    custom-plugins: ""
+  environmentRef: QA
+  deploymentType: Kubernetes
+  type: KubernetesDirect
+  spec:
+    connectorRef: pipelinedemocluster
+    namespace: web-qa
+    releaseName: release-<+INFRA_KEY_SHORT_ID>
+  allowSimultaneousDeployments: false

@@ -1,0 +1,15 @@
+infrastructureDefinition:
+  name: Dev_Infra
+  identifier: Dev_Infra
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  tags:
+    custom-plugins: ""
+  environmentRef: Dev
+  deploymentType: Kubernetes
+  type: KubernetesDirect
+  spec:
+    connectorRef: pipelinedemocluster
+    namespace: web-dev
+    releaseName: release-<+INFRA_KEY_SHORT_ID>
+  allowSimultaneousDeployments: false
