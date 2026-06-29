@@ -1,0 +1,6 @@
+# Values for the Prod environment.
+# Selected automatically when <+env.name> resolves to "Prod".
+env_name: Prod
+env_color: "#198754"
+app_version: <+artifact.version>
+image: <+artifact.image>

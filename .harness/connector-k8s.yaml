@@ -1,0 +1,16 @@
+connector:
+  name: pipeline-demo-cluster
+  identifier: pipelinedemocluster
+  description: ""
+  tags:
+    custom-plugins: ""
+  accountIdentifier: ${HARNESS_ACCOUNT_ID}
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  type: K8sCluster
+  spec:
+    credential:
+      type: InheritFromDelegate
+    delegateSelectors:
+      - ${DELEGATE_SELECTOR}
+    ignoreTestConnection: false

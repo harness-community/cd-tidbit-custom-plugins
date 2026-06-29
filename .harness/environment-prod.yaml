@@ -1,0 +1,8 @@
+environment:
+  name: Prod
+  identifier: Prod
+  tags:
+    custom-plugins: ""
+  type: Production
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}

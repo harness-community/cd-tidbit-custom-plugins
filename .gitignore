@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.local
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Python (for cd-k8s / ci-only)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build artifacts
+*.tar.gz
+*.tgz
