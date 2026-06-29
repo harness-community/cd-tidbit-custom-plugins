@@ -55,13 +55,11 @@ After completing this tidbit, you can:
 
 1. **Fork this repo** to your GitHub account.
 2. **Clone your fork** locally.
-3. **Copy `.env.example` to `.env`** and fill in your Harness and GitHub values. Leave the `KANBOARD_*` IDs blank for now.
-4. **Run `./scripts/setup.sh`** — creates namespaces, installs the Harness delegate, installs Kanboard via Helm, and provisions the Harness Project / Connectors / Service / Environments / Infras.
-5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`).
-6. **In Kanboard:** sign in (default admin / admin), generate an API token (My Profile → API), create a project called "Deployments" with columns Backlog / Dev / QA / Prod, and add one task in Backlog. Paste the token and IDs into `.env`.
-7. **Re-run `./scripts/setup.sh`** — creates the Kanboard-dependent Harness secrets (`kanboard_url`, `kanboard_api_token`) and the pipeline (which references them).
-8. **Build and push the plugin image:** `make build-plugin && make push-plugin` (logs in to GHCR with your `GITHUB_PAT`).
-9. **Run `make validate`** — pre-flight checks.
+3. **Copy `.env.example` to `.env`** and fill in your Harness and GitHub values. Leave the `KANBOARD_*` keys blank — `setup.sh` populates them.
+4. **Run `./scripts/setup.sh`** — creates namespaces, installs the Harness delegate, installs Kanboard via Helm, then bootstraps Kanboard non-interactively: a "Deployments" project is created with columns Backlog / Dev / QA / Prod and a single demo task in Backlog. A random `KANBOARD_API_TOKEN` is generated (injected into the Kanboard pod and into a Harness secret) and the project / column / task IDs are written back into `.env`. The script also provisions the Harness Project / Connectors / Service / Environments / Infras / Pipeline. Re-runs are no-ops.
+5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`, default admin / admin).
+6. **Build and push the plugin image:** `make build-plugin && make push-plugin` (logs in to GHCR with your `GITHUB_PAT`).
+7. **Run `make validate`** — pre-flight checks.
 
 ## Run the Demo
 
