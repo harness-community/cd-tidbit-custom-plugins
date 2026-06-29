@@ -57,7 +57,7 @@ After completing this tidbit, you can:
 2. **Clone your fork** locally.
 3. **Copy `.env.example` to `.env`** and fill in your Harness and GitHub values. Leave the `KANBOARD_*` keys blank — `setup.sh` populates them.
 4. **Run `./scripts/setup.sh`** — creates namespaces, installs the Harness delegate, installs Kanboard via Helm, then bootstraps Kanboard non-interactively: a "Deployments" project is created with columns Backlog / Dev / QA / Prod and a single demo task in Backlog. A random `KANBOARD_API_TOKEN` is generated (injected into the Kanboard pod and into a Harness secret) and the project / column / task IDs are written back into `.env`. The script also provisions the Harness Project / Connectors / Service / Environments / Infras / Pipeline. Re-runs are no-ops.
-5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`, default admin / admin).
+5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`, default `admin` / `admin`). Your browser will likely flag the default password as compromised — safe to dismiss for this ephemeral demo cluster; the Kanboard install ships with this default and isn't reachable outside `localhost`.
 6. **Build and push the plugin image:** `make build-plugin && make push-plugin` (logs in to GHCR with your `GITHUB_PAT`).
 7. **Run `make validate`** — pre-flight checks.
 
