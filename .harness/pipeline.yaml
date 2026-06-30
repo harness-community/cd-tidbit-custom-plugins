@@ -12,8 +12,8 @@ pipeline:
       value: ${GITHUB_USERNAME}
     - name: plugin_image
       type: String
-      description: Containerized plugin image — bump the tag to roll out a new plugin
-      value: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-kanboard:v1
+      description: Containerized plugin image
+      value: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-kanboard:latest
     - name: kanboard_project_id
       type: String
       description: Kanboard project the plugin moves a task within
