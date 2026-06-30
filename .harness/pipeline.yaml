@@ -47,7 +47,7 @@ pipeline:
                     repo: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-demo
                     tags:
                       - <+pipeline.sequenceId>
-                    dockerfile: app/Dockerfile
+                    caching: true
                     context: app
     - stage:
         name: Deploy to Dev

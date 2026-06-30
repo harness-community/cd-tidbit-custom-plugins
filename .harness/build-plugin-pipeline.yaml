@@ -36,6 +36,7 @@ pipeline:
                     repo: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-kanboard
                     tags:
                       - v1
+                    caching: true
                     dockerfile: plugin/Dockerfile
                     context: plugin
   properties:
