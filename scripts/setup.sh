@@ -257,7 +257,7 @@ if [ "$DRY_RUN" = true ]; then
   info "    --namespace harness-delegate --create-namespace --force-conflicts \\"
   info "    --set delegateName=$DELEGATE_NAME --set accountId=$HARNESS_ACCOUNT_ID \\"
   info "    --set delegateToken=<REDACTED> --set managerEndpoint=$BASE_URL \\"
-  info "    --set delegateCustomTags=$DELEGATE_SELECTOR"
+  info "    --set tags=$DELEGATE_SELECTOR"
 elif kubectl get pods -A -l "harness.io/name=$DELEGATE_NAME" --field-selector=status.phase=Running 2>/dev/null | grep -q "$DELEGATE_NAME"; then
   ok "delegate '$DELEGATE_NAME' is already running — skipping install"
 else
@@ -295,7 +295,7 @@ else
         --set accountId="$HARNESS_ACCOUNT_ID" \
         --set delegateToken="$DELEGATE_TOKEN" \
         --set managerEndpoint="$BASE_URL" \
-        --set "delegateCustomTags=$DELEGATE_SELECTOR" >/dev/null 2>&1; then
+        --set "tags=$DELEGATE_SELECTOR" >/dev/null 2>&1; then
       warn "helm upgrade failed — if a delegate is already running, this is usually safe to ignore. Check 'helm list -n harness-delegate' and 'kubectl get pods -n harness-delegate'."
     else
       ok "delegate installed (tag: $DELEGATE_SELECTOR) — it may take a minute to register"

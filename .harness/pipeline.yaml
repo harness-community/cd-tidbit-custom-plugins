@@ -66,9 +66,9 @@ pipeline:
                     primary:
                       sources:
                         - identifier: custom_plugins_demo
-                          type: GithubPackageRegistry
+                          type: DockerRegistry
                           spec:
-                            version: <+pipeline.sequenceId>
+                            tag: <+pipeline.sequenceId>
           environment:
             environmentRef: Dev
             deployToAll: false

@@ -31,12 +31,9 @@ service:
           primaryArtifactRef: custom_plugins_demo
           sources:
             - identifier: custom_plugins_demo
+              type: DockerRegistry
               spec:
-                connectorRef: github
-                packageName: custom-plugins-demo
-                packageType: container
-                version: <+input>
-                digest: ""
-                org: ""
-              type: GithubPackageRegistry
+                connectorRef: ghcrconn
+                imagePath: ${GITHUB_USERNAME}/custom-plugins-demo
+                tag: <+input>
     type: Kubernetes
