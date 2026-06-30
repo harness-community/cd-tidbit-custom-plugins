@@ -1,0 +1,46 @@
+pipeline:
+  name: Build Plugin Image
+  identifier: build_plugin_pipeline
+  projectIdentifier: ${HARNESS_PROJECT}
+  orgIdentifier: ${HARNESS_ORG}
+  description: Builds and pushes the Kanboard plugin image to GHCR. Run once after setup, and again whenever plugin/ changes.
+  tags:
+    custom-plugins: ""
+  variables:
+    - name: github_user
+      type: String
+      description: GHCR namespace used in the plugin image path
+      value: ${GITHUB_USERNAME}
+  stages:
+    - stage:
+        name: Build Plugin
+        identifier: Build_Plugin
+        description: Builds and pushes ghcr.io/<github_user>/custom-plugins-kanboard:v1.
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push
+                  identifier: Build_and_Push
+                  spec:
+                    connectorRef: ghcrconn
+                    repo: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-kanboard
+                    tags:
+                      - v1
+                    dockerfile: plugin/Dockerfile
+                    context: plugin
+  properties:
+    ci:
+      codebase:
+        connectorRef: github
+        build: <+input>
+        sparseCheckout: []

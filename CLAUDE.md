@@ -17,8 +17,6 @@ The tidbit demonstrates the feature in a single concrete workflow a learner can 
 ```bash
 make validate          # Pre-flight checks
 make cleanup           # Tear down what setup.sh created
-make build-local       # Build the plugin image locally
-make run-local         # Run the plugin image locally
 make port-forward      # Foreground port-forward to Dev + Prod
 ```
 

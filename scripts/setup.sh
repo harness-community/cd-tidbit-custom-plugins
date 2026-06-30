@@ -94,45 +94,84 @@ redact() {
 }
 
 # --- envsubst with restricted variable list ---
-# CRITICAL: keep this list in sync with docs/placeholders.md.
-ENVSUBST_VARS='${HARNESS_ACCOUNT_ID} ${HARNESS_ORG} ${HARNESS_PROJECT}'
+# CRITICAL: keep this list in sync with docs/placeholders.md. Every ${VAR}
+# that appears in any .harness/ YAML must be listed here, or envsubst will
+# leave it as a literal "${VAR}" in the rendered output and the upload will
+# fail (or worse — silently succeed with broken refs).
+ENVSUBST_VARS='${HARNESS_ACCOUNT_ID} ${HARNESS_ORG} ${HARNESS_PROJECT} ${DELEGATE_SELECTOR} ${GITHUB_USERNAME} ${GITHUB_REPO} ${KANBOARD_PROJECT_ID} ${KANBOARD_TASK_ID} ${KANBOARD_COL_DEV} ${KANBOARD_COL_QA} ${KANBOARD_COL_PROD}'
 
 render() {
   local file="$1"
   envsubst "$ENVSUBST_VARS" < "$file"
 }
 
-# --- Harness API helper: idempotent create (POST then PUT on 409) ---
-api_create() {
-  local desc="$1" url="$2" body_file="$3" put_url="${4:-$2}"
+# Convert a rendered .harness/connector-*.yaml to JSON for the connectors API.
+render_connector_json() { render "$1" | yq -o=json; }
+
+# Wrap a rendered entity YAML in the JSON envelope the v2 endpoints expect:
+#   { yaml: "...", identifier: "...", orgIdentifier: "...", projectIdentifier: "..." }
+# Usage: render_entity_json <file> <k=v>...
+render_entity_json() {
+  local file="$1"; shift
+  local y; y="$(render "$file")"
+  local args=(--arg yaml "$y")
+  local filter='{yaml: $yaml'
+  for kv in "$@"; do
+    args+=(--arg "${kv%%=*}" "${kv#*=}")
+    filter+=", ${kv%%=*}: \$${kv%%=*}"
+  done
+  filter+='}'
+  jq -n "${args[@]}" "$filter"
+}
+
+# --- Harness API helpers --------------------------------------------------
+# api_send <method> <url> <ctype> <data>  — body on stdout, HTTP code on last line.
+# Honors DRY_RUN by redacting + printing the would-be call and emitting a fake 200.
+api_send() {
+  local method="$1" url="$2" ctype="$3" data="$4"
   if [ "$DRY_RUN" = true ]; then
-    info "POST $url"
-    info "Body:"
-    render "$body_file" | redact | sed 's/^/      /'
+    {
+      echo "    curl -X $method '$url'"
+      echo "      -H 'x-api-key: <REDACTED>' -H 'Content-Type: $ctype'"
+      printf '%s\n' "$data" | redact | sed 's/^/        /'
+    } >&2
+    printf '\n200'
     return 0
   fi
-  local rendered
-  rendered=$(render "$body_file")
-  local resp_code
-  resp_code=$(curl -sS -o /tmp/_resp -w '%{http_code}' \
-    -X POST "$url" \
-    -H "x-api-key: ${HARNESS_API_KEY}" \
-    -H "Content-Type: application/yaml" \
-    --data-binary "$rendered")
-  case "$resp_code" in
-    2*) ok "$desc created" ;;
-    409)
-      info "$desc exists — updating"
-      curl -sS -o /tmp/_resp -w '%{http_code}' \
-        -X PUT "$put_url" \
-        -H "x-api-key: ${HARNESS_API_KEY}" \
-        -H "Content-Type: application/yaml" \
-        --data-binary "$rendered" > /dev/null
-      ok "$desc updated"
-      ;;
-    *) die "$desc failed (HTTP $resp_code): $(cat /tmp/_resp)" ;;
-  esac
+  curl -sS -X "$method" "$url" \
+    -H "x-api-key: $HARNESS_API_KEY" \
+    -H "Content-Type: $ctype" \
+    -w $'\n%{http_code}' \
+    --data-binary "$data"
 }
+
+# upsert <label> <create-url> <update-url> <ctype> <data>
+# Tries POST; if the server says "already exists" (409 or duplicate body), PUTs instead.
+upsert() {
+  local label="$1" create_url="$2" update_url="$3" ctype="$4" data="$5"
+  local resp code body
+  resp="$(api_send POST "$create_url" "$ctype" "$data")"
+  code="$(printf '%s' "$resp" | tail -n1)"
+  body="$(printf '%s' "$resp" | sed '$d')"
+  if [[ "$code" =~ ^2 ]]; then
+    ok "$label created"; return 0
+  fi
+  if [[ "$code" == "409" ]] || printf '%s' "$body" | grep -qi "already exists\|duplicate"; then
+    resp="$(api_send PUT "$update_url" "$ctype" "$data")"
+    code="$(printf '%s' "$resp" | tail -n1)"
+    body="$(printf '%s' "$resp" | sed '$d')"
+    if [[ "$code" =~ ^2 ]]; then
+      ok "$label updated"; return 0
+    fi
+  fi
+  warn "$label failed (HTTP $code): $(printf '%s' "$body" | head -c 300)"
+  return 1
+}
+
+# Query-string fragments reused on every Harness API call.
+ACCT="accountIdentifier=$HARNESS_ACCOUNT_ID"
+ORG="orgIdentifier=$HARNESS_ORG"
+PROJ="projectIdentifier=$HARNESS_PROJECT"
 
 # --- .env writer (idempotent): only writes keys whose current value is blank ---
 # Usage: env_write KEY VALUE
@@ -191,12 +230,77 @@ for ns in web-dev web-qa web-prod; do
   fi
 done
 
-step "Delegate (Helm)"
-if [ "$DRY_RUN" = true ]; then
-  info "helm upgrade -i $DELEGATE_NAME --namespace harness-delegate-ng --create-namespace harness-delegate/harness-delegate-ng ..."
+step "Project"
+# Must come before the Delegate step because delegate-token-ng is
+# project-scoped: that GET 404s if the project doesn't yet exist.
+if [ "$CREATE_PROJECT" = "true" ]; then
+  proj_body=$(cat <<JSON
+{"project":{"identifier":"$HARNESS_PROJECT","name":"$HARNESS_PROJECT","orgIdentifier":"$HARNESS_ORG","modules":["CD","CI"]}}
+JSON
+)
+  upsert "Project $HARNESS_PROJECT" \
+    "$BASE_URL/ng/api/projects?$ACCT&$ORG" \
+    "$BASE_URL/ng/api/projects/$HARNESS_PROJECT?$ACCT&$ORG" \
+    "application/json" "$proj_body" || true
 else
-  # TODO: fetch a project-scoped delegate token via API, then run helm upgrade.
-  warn "Delegate install is a TODO — install via the Harness UI or fill in the helm command here."
+  info "CREATE_PROJECT=false — using existing $HARNESS_ORG/$HARNESS_PROJECT"
+fi
+
+step "Delegate (Helm)"
+# A delegate must exist and be tagged $DELEGATE_SELECTOR before the K8s
+# connector can resolve. We fetch the project-scoped default delegate token
+# via API and run helm upgrade --install. Idempotent: if a delegate with our
+# name is already running, we skip.
+if [ "$DRY_RUN" = true ]; then
+  info "GET $BASE_URL/ng/api/delegate-token-ng?$ACCT&$ORG&$PROJ&name=default_token"
+  info "helm upgrade --install harness-delegate harness-delegate/harness-delegate-ng \\"
+  info "    --namespace harness-delegate --create-namespace --force-conflicts \\"
+  info "    --set delegateName=$DELEGATE_NAME --set accountId=$HARNESS_ACCOUNT_ID \\"
+  info "    --set delegateToken=<REDACTED> --set managerEndpoint=$BASE_URL \\"
+  info "    --set delegateCustomTags=$DELEGATE_SELECTOR"
+elif kubectl get pods -A -l "harness.io/name=$DELEGATE_NAME" --field-selector=status.phase=Running 2>/dev/null | grep -q "$DELEGATE_NAME"; then
+  ok "delegate '$DELEGATE_NAME' is already running — skipping install"
+else
+  info "fetching default delegate token"
+  # Race: Harness creates default_token asynchronously after the project is
+  # provisioned. On a first run we may hit the endpoint before that side-effect
+  # lands, getting back resource:[] or RESOURCE_NOT_FOUND. Retry with backoff.
+  DELEGATE_TOKEN=""
+  for attempt in 1 2 3 4 5 6 7 8; do
+    tok_resp="$(curl -sS "$BASE_URL/ng/api/delegate-token-ng?$ACCT&$ORG&$PROJ&name=default_token" \
+      -H "x-api-key: $HARNESS_API_KEY")"
+    DELEGATE_TOKEN="$(printf '%s' "$tok_resp" | jq -r '.resource[0].value // empty' 2>/dev/null || true)"
+    [ -n "$DELEGATE_TOKEN" ] && break
+    info "  default_token not yet readable (attempt $attempt/8) — waiting 3s"
+    sleep 3
+  done
+  if [ -z "$DELEGATE_TOKEN" ]; then
+    warn "Could not read default delegate token after 8 attempts. Ensure your API key has delegate-edit permission, or install the delegate manually via the Harness UI. Continuing — the K8s connector will be unhealthy until a delegate registers."
+    # Skip the helm install but keep the script going so the rest of the
+    # resources still get provisioned; the learner can install the delegate
+    # manually and re-run setup.sh.
+    DELEGATE_TOKEN=""
+  fi
+
+  if [ -n "$DELEGATE_TOKEN" ]; then
+    helm repo add harness-delegate https://app.harness.io/storage/harness-download/delegate-helm-chart/ >/dev/null 2>&1 || true
+    helm repo update harness-delegate >/dev/null 2>&1 || true
+    # The Harness delegate-upgrader sidecar takes ownership of the container
+    # image field once the delegate self-updates, so subsequent helm upgrades
+    # report a field-manager conflict. --force-conflicts handles that on
+    # Helm 4 (server-side apply by default) and on Helm 3.13+.
+    if ! helm upgrade --install harness-delegate harness-delegate/harness-delegate-ng \
+        --namespace harness-delegate --create-namespace --force-conflicts \
+        --set delegateName="$DELEGATE_NAME" \
+        --set accountId="$HARNESS_ACCOUNT_ID" \
+        --set delegateToken="$DELEGATE_TOKEN" \
+        --set managerEndpoint="$BASE_URL" \
+        --set "delegateCustomTags=$DELEGATE_SELECTOR" >/dev/null 2>&1; then
+      warn "helm upgrade failed — if a delegate is already running, this is usually safe to ignore. Check 'helm list -n harness-delegate' and 'kubectl get pods -n harness-delegate'."
+    else
+      ok "delegate installed (tag: $DELEGATE_SELECTOR) — it may take a minute to register"
+    fi
+  fi
 fi
 
 step "Kanboard (Helm chart)"
@@ -266,17 +370,19 @@ else
 
   # Step 1: ensure the project exists. getProjectByName returns `false` if
   # absent and an object {id, name, ...} when present.
-  PROJ=$(kb_rpc getProjectByName "{\"name\":\"$KB_PROJECT_NAME\"}")
-  if [ "$PROJ" = "false" ] || [ "$PROJ" = "null" ] || [ -z "$PROJ" ]; then
-    PROJ_ID=$(kb_rpc createProject "{\"name\":\"$KB_PROJECT_NAME\"}")
-    ok "Project '$KB_PROJECT_NAME' created (id=$PROJ_ID)"
+  # NB: don't reuse the names PROJ / PROJ_ID — those are the Harness URL
+  # fragments defined above (projectIdentifier=...). Bash variables are global.
+  KB_PROJ=$(kb_rpc getProjectByName "{\"name\":\"$KB_PROJECT_NAME\"}")
+  if [ "$KB_PROJ" = "false" ] || [ "$KB_PROJ" = "null" ] || [ -z "$KB_PROJ" ]; then
+    KB_PROJ_ID=$(kb_rpc createProject "{\"name\":\"$KB_PROJECT_NAME\"}")
+    ok "Project '$KB_PROJECT_NAME' created (id=$KB_PROJ_ID)"
   else
-    PROJ_ID=$(jq -r '.id' <<<"$PROJ")
-    info "Project '$KB_PROJECT_NAME' exists (id=$PROJ_ID)"
+    KB_PROJ_ID=$(jq -r '.id' <<<"$KB_PROJ")
+    info "Project '$KB_PROJECT_NAME' exists (id=$KB_PROJ_ID)"
   fi
 
   # Step 2: rename the 4 default columns by position.
-  COLS=$(kb_rpc getColumns "{\"project_id\":$PROJ_ID}")
+  COLS=$(kb_rpc getColumns "{\"project_id\":$KB_PROJ_ID}")
   for i in 0 1 2 3; do
     COL_ID=$(jq -r ".[$i].id" <<<"$COLS")
     CUR_TITLE=$(jq -r ".[$i].title" <<<"$COLS")
@@ -291,18 +397,19 @@ else
   done
 
   # Step 3: ensure the demo task exists in the Backlog column.
-  TASKS=$(kb_rpc getAllTasks "{\"project_id\":$PROJ_ID,\"status_id\":1}")
-  TASK_ID=$(jq -r --arg t "$KB_TASK_TITLE" '.[] | select(.title==$t) | .id' <<<"$TASKS" | head -1)
+  TASKS=$(kb_rpc getAllTasks "{\"project_id\":$KB_PROJ_ID,\"status_id\":1}")
+  # jq's `first(...)` avoids the head -1 / SIGPIPE-under-pipefail trap.
+  TASK_ID=$(jq -r --arg t "$KB_TASK_TITLE" 'first(.[] | select(.title==$t) | .id) // empty' <<<"$TASKS")
   if [ -z "$TASK_ID" ] || [ "$TASK_ID" = "null" ]; then
     TASK_ID=$(kb_rpc createTask \
-      "{\"project_id\":$PROJ_ID,\"title\":\"$KB_TASK_TITLE\",\"column_id\":${COL_Backlog_ID}}")
+      "{\"project_id\":$KB_PROJ_ID,\"title\":\"$KB_TASK_TITLE\",\"column_id\":${COL_Backlog_ID}}")
     ok "task '$KB_TASK_TITLE' created (id=$TASK_ID)"
   else
     info "task '$KB_TASK_TITLE' exists (id=$TASK_ID)"
   fi
 
   # Step 4: write captured IDs back into .env (only blank keys are filled).
-  env_write KANBOARD_PROJECT_ID "$PROJ_ID"
+  env_write KANBOARD_PROJECT_ID "$KB_PROJ_ID"
   env_write KANBOARD_TASK_ID    "$TASK_ID"
   env_write KANBOARD_COL_BACKLOG "$COL_Backlog_ID"
   env_write KANBOARD_COL_DEV     "$COL_Dev_ID"
@@ -320,32 +427,88 @@ else
   trap - EXIT
 fi
 
-step "Project"
-# TODO: If CREATE_PROJECT=true, POST to /ng/api/projects?accountIdentifier=...&orgIdentifier=...
-# See exemplar at ~/Code/cd-tidbit-pipeline-control-rollback/scripts/setup.sh for the pattern.
-
 step "Secrets"
-# TODO: Create:
-#   - ghcr_token         (text)   — GITHUB_PAT, used by GHCR connector
-#   - kanboard_url       (text)   — KANBOARD_URL, injected into plugin step
-#   - kanboard_api_token (text)   — KANBOARD_API_TOKEN, injected into plugin step
+# Three text secrets the connectors / plugin step reference. Bodies are built
+# inline (not from a .harness/ template) because the secret value itself must
+# be embedded in the JSON — keeping that off disk avoids accidental commits.
+for s in \
+  "ghcr_token=$GITHUB_PAT" \
+  "kanboard_url=$KANBOARD_URL" \
+  "kanboard_api_token=$KANBOARD_API_TOKEN"; do
+  sid="${s%%=*}"; sval="${s#*=}"
+  secret_body=$(jq -nc --arg id "$sid" --arg org "$HARNESS_ORG" --arg proj "$HARNESS_PROJECT" --arg val "$sval" \
+    '{secret:{type:"SecretText",name:$id,identifier:$id,orgIdentifier:$org,projectIdentifier:$proj,
+              spec:{secretManagerIdentifier:"harnessSecretManager",valueType:"Inline",value:$val,type:"SecretText"}}}')
+  upsert "Secret $sid" \
+    "$BASE_URL/ng/api/v2/secrets?$ACCT&$ORG&$PROJ" \
+    "$BASE_URL/ng/api/v2/secrets/$sid?$ACCT&$ORG&$PROJ" \
+    "application/json" "$secret_body"
+done
 
 step "Connectors"
-# TODO: Create:
-#   - ghcrconn               (Docker registry, type=Other, GHCR)
-#   - pipelinedemocluster    (K8sCluster, InheritFromDelegate)
+for c in connector-github connector-ghcr connector-k8s; do
+  upsert "Connector $c" \
+    "$BASE_URL/ng/api/connectors?$ACCT" \
+    "$BASE_URL/ng/api/connectors?$ACCT" \
+    "application/json" \
+    "$(render_connector_json "$HARNESS_DIR/$c.yaml")"
+done
 
 step "Service"
-# TODO: Create the demo app service (custom-plugins-demo).
+upsert "Service custom-plugins-demo" \
+  "$BASE_URL/ng/api/servicesV2?$ACCT" \
+  "$BASE_URL/ng/api/servicesV2?$ACCT" \
+  "application/json" \
+  "$(render_entity_json "$HARNESS_DIR/service.yaml" \
+      identifier=custom_plugins_demo name=custom-plugins-demo \
+      orgIdentifier="$HARNESS_ORG" projectIdentifier="$HARNESS_PROJECT")"
 
 step "Environments"
-# TODO: Create environments Dev (PreProduction), QA (PreProduction), Prod (Production).
+# <yaml-file>:<identifier>:<display-name>:<type(PreProduction|Production)>
+for envspec in environment-dev.yaml:Dev:Dev:PreProduction \
+               environment-qa.yaml:QA:QA:PreProduction \
+               environment-prod.yaml:Prod:Prod:Production; do
+  IFS=: read -r file ident name etype <<<"$envspec"
+  upsert "Environment $ident" \
+    "$BASE_URL/ng/api/environmentsV2?$ACCT" \
+    "$BASE_URL/ng/api/environmentsV2?$ACCT" \
+    "application/json" \
+    "$(render_entity_json "$HARNESS_DIR/$file" \
+        identifier="$ident" name="$name" type="$etype" \
+        orgIdentifier="$HARNESS_ORG" projectIdentifier="$HARNESS_PROJECT")"
+done
 
 step "Infrastructures"
-# TODO: Create Dev_Infra, QA_Infra, Prod_Infra (KubernetesDirect → namespaces web-dev/web-qa/web-prod).
+# <yaml-file>:<identifier>:<display-name>:<environmentIdentifier>
+for infspec in infra-dev.yaml:Dev_Infra:Dev_Infra:Dev \
+               infra-qa.yaml:QA_Infra:QA_Infra:QA \
+               infra-prod.yaml:Prod_Infra:Prod_Infra:Prod; do
+  IFS=: read -r file ident name envid <<<"$infspec"
+  upsert "Infrastructure $ident" \
+    "$BASE_URL/ng/api/infrastructures?$ACCT" \
+    "$BASE_URL/ng/api/infrastructures?$ACCT" \
+    "application/json" \
+    "$(render_entity_json "$HARNESS_DIR/$file" \
+        identifier="$ident" name="$name" type=KubernetesDirect \
+        orgIdentifier="$HARNESS_ORG" projectIdentifier="$HARNESS_PROJECT" \
+        environmentIdentifier="$envid")"
+done
 
-step "Pipeline"
-# TODO: Create the pipeline (three stages: Dev, QA, Prod — each Deploy + Plugin step).
+step "Pipelines"
+# Pipelines use a different endpoint shape than services/envs/infras — raw
+# YAML body (no JSON envelope), Content-Type: application/yaml. Update path
+# also differs: PUT /pipeline/api/pipelines/<identifier>.
+BUILD_PLUGIN_YAML="$(render "$HARNESS_DIR/build-plugin-pipeline.yaml")"
+upsert "Pipeline build_plugin_pipeline" \
+  "$BASE_URL/pipeline/api/pipelines/v2?$ACCT&$ORG&$PROJ" \
+  "$BASE_URL/pipeline/api/pipelines/build_plugin_pipeline?$ACCT&$ORG&$PROJ" \
+  "application/yaml" "$BUILD_PLUGIN_YAML"
+
+PIPELINE_YAML="$(render "$HARNESS_DIR/pipeline.yaml")"
+upsert "Pipeline custom_plugins_pipeline" \
+  "$BASE_URL/pipeline/api/pipelines/v2?$ACCT&$ORG&$PROJ" \
+  "$BASE_URL/pipeline/api/pipelines/custom_plugins_pipeline?$ACCT&$ORG&$PROJ" \
+  "application/yaml" "$PIPELINE_YAML"
 
 echo
 ok "Setup complete."

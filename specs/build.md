@@ -16,7 +16,7 @@ The tidbit treats the Plugin step as five coordinate sub-skills demonstrated in 
 
 After completing this tidbit, a learner can:
 
-1. Build a containerized Harness Plugin step from a Dockerfile.
+1. Build a containerized Harness Plugin step from a Dockerfile inside a Harness CI stage.
 2. Push the plugin image to a registry (GHCR) and reference it from a pipeline.
 3. Pass per-environment configuration to a single plugin image via env vars.
 4. Inject Harness secrets into a Plugin step's environment.
@@ -53,6 +53,7 @@ See the Repository Structure block in the README for the authoritative file tree
 - **Pipeline shape: three explicit stages (Dev, QA, Prod), each `Deploy K8s` → `Plugin: move card`.** Mirrors the exemplar's stage shape and gives the viewer a discrete plugin call per environment to read in the execution view.
 - **Harness step type: dedicated `Plugin` step (not `Run` with `image:`).** The Plugin step *is* the lesson — pointing at the `Run` step would muddy the framing.
 - **Plugin image tag: immutable (`v1`, then `v1.0.1`, ...).** Real-world plugin reuse uses pinned tags; `:latest` is a known footgun and the wrong example to teach with.
+- **Plugin and app images are built in Harness CI on Harness Cloud (`runtime.type: Cloud`).** No local `docker` required, no buildx, no arch flags, no `docker login ghcr.io`. The viewer also sees the Plugin image *being built* in the pipeline view before it's used, which previously happened off-camera. The plugin lives in its own short pipeline (`build_plugin_pipeline`, run once after setup); the app builds at the start of every demo run, tagged with `<+pipeline.sequenceId>` so each run gets a unique deterministic tag.
 - **No approval gates in the demo run.** The pipeline runs straight through so the card-hopping is one continuous payoff. Approvals are listed in the README's "Future Enhancements" section as a follow-on the learner can layer in.
 
 (Lessons-learned defaults from the first tidbit retained: no `executionInput()` prompts; demo app has no external runtime deps; five acts max.)
@@ -60,16 +61,16 @@ See the Repository Structure block in the README for the authoritative file tree
 ## Pipeline Architecture
 
 ```
-┌────────────────┐    ┌────────────────┐    ┌────────────────┐
-│  Stage: Dev    │───▶│  Stage: QA     │───▶│  Stage: Prod   │
-│ ─────────────  │    │ ─────────────  │    │ ─────────────  │
-│ Deploy K8s     │    │ Deploy K8s     │    │ Deploy K8s     │
-│ Plugin: move   │    │ Plugin: move   │    │ Plugin: move   │
-│  card → Dev    │    │  card → QA     │    │  card → Prod   │
-└────────────────┘    └────────────────┘    └────────────────┘
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│ Stage: Build   │───▶│  Stage: Dev    │───▶│  Stage: QA     │───▶│  Stage: Prod   │
+│ ─────────────  │    │ ─────────────  │    │ ─────────────  │    │ ─────────────  │
+│ Build & Push   │    │ Deploy K8s     │    │ Deploy K8s     │    │ Deploy K8s     │
+│ app:<seq>      │    │ Plugin: move   │    │ Plugin: move   │    │ Plugin: move   │
+│  → GHCR        │    │  card → Dev    │    │  card → QA     │    │  card → Prod   │
+└────────────────┘    └────────────────┘    └────────────────┘    └────────────────┘
 ```
 
-The same plugin image (`ghcr.io/<user>/custom-plugins-kanboard:v1`) runs three times in one execution; only the `KANBOARD_COL` env var differs per stage.
+The same plugin image (`ghcr.io/<user>/custom-plugins-kanboard:v1`) runs three times in one execution; only the `KANBOARD_COL` env var differs per stage. The app image is built once at the head of each run and tagged with `<+pipeline.sequenceId>`. The plugin image itself is built by a separate `build_plugin_pipeline` (run once after setup, or whenever `plugin/` changes).
 
 ## Controls / Features Demonstrated
 
@@ -102,5 +103,6 @@ The same plugin image (`ghcr.io/<user>/custom-plugins-kanboard:v1`) runs three t
 | GHCR connector | `ghcrconn` | Pulls the demo app image AND the plugin image |
 | Secret (text) | `kanboard_url` | Plugin step env var |
 | Secret (text) | `kanboard_api_token` | Plugin step env var |
-| Pipeline | `custom-plugins-pipeline` | Three stages: Dev / QA / Prod, each with Deploy + Plugin step |
+| Pipeline | `custom-plugins-pipeline` | Build stage + three Deployment stages (Dev / QA / Prod), each with Deploy + Plugin step |
+| Pipeline | `build_plugin_pipeline` | Standalone CI pipeline that builds and pushes the plugin image. Run once after setup, or when `plugin/` changes |
 | Env variable (per env) | `column_id` | The Kanboard column id this environment maps to |

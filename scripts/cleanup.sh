@@ -57,8 +57,18 @@ api_delete() {
     -X DELETE "$url" \
     -H "x-api-key: ${HARNESS_API_KEY}")
   case "$code" in
-    2*|404) ok "$desc deleted" ;;
-    *) warn "$desc delete returned HTTP $code: $(cat /tmp/_resp)" ;;
+    2*|404)
+      ok "$desc deleted" ;;
+    400|500)
+      # Harness returns 400 with RESOURCE_NOT_FOUND_EXCEPTION when a parent
+      # (e.g. the project) is already gone. Treat as success.
+      if grep -q "RESOURCE_NOT_FOUND_EXCEPTION" /tmp/_resp; then
+        ok "$desc already gone"
+      else
+        warn "$desc delete returned HTTP $code: $(cat /tmp/_resp)"
+      fi ;;
+    *)
+      warn "$desc delete returned HTTP $code: $(cat /tmp/_resp)" ;;
   esac
 }
 
@@ -67,23 +77,44 @@ api_delete() {
 step "Confirming"
 confirm "Tear down the Custom Plugins tidbit?" || { echo "Aborted."; exit 0; }
 
-step "Pipeline"
-# TODO: DELETE the pipeline.
+ACCT="accountIdentifier=$HARNESS_ACCOUNT_ID"
+ORG="orgIdentifier=$HARNESS_ORG"
+PROJ="projectIdentifier=$HARNESS_PROJECT"
+
+step "Pipelines"
+api_delete "Pipeline build_plugin_pipeline" \
+  "$BASE_URL/pipeline/api/pipelines/build_plugin_pipeline?$ACCT&$ORG&$PROJ"
+api_delete "Pipeline custom_plugins_pipeline" \
+  "$BASE_URL/pipeline/api/pipelines/custom_plugins_pipeline?$ACCT&$ORG&$PROJ"
 
 step "Infrastructures"
-# TODO: DELETE Dev_Infra, QA_Infra, Prod_Infra.
+for spec in Dev_Infra:Dev QA_Infra:QA Prod_Infra:Prod; do
+  IFS=: read -r ident envid <<<"$spec"
+  api_delete "Infrastructure $ident" \
+    "$BASE_URL/ng/api/infrastructures/$ident?$ACCT&$ORG&$PROJ&environmentIdentifier=$envid"
+done
 
 step "Environments"
-# TODO: DELETE Dev, QA, Prod.
+for env in Dev QA Prod; do
+  api_delete "Environment $env" \
+    "$BASE_URL/ng/api/environmentsV2/$env?$ACCT&$ORG&$PROJ"
+done
 
 step "Service"
-# TODO: DELETE custom-plugins-demo.
+api_delete "Service custom_plugins_demo" \
+  "$BASE_URL/ng/api/servicesV2/custom_plugins_demo?$ACCT&$ORG&$PROJ"
 
 step "Connectors"
-# TODO: DELETE ghcrconn, pipelinedemocluster.
+for c in github ghcrconn pipelinedemocluster; do
+  api_delete "Connector $c" \
+    "$BASE_URL/ng/api/connectors/$c?$ACCT&$ORG&$PROJ"
+done
 
 step "Secrets"
-# TODO: DELETE ghcr_token, kanboard_url, kanboard_api_token.
+for s in ghcr_token kanboard_url kanboard_api_token; do
+  api_delete "Secret $s" \
+    "$BASE_URL/ng/api/v2/secrets/$s?$ACCT&$ORG&$PROJ"
+done
 
 step "Kanboard (Helm)"
 if [ "$DRY_RUN" = true ]; then
@@ -105,10 +136,13 @@ for ns in web-dev web-qa web-prod; do
 done
 
 step "Delegate"
+# setup.sh installs the chart as release `harness-delegate` in namespace `harness-delegate`.
 if [ "$DRY_RUN" = true ]; then
-  info "helm uninstall $DELEGATE_NAME -n harness-delegate-ng"
+  info "helm uninstall harness-delegate -n harness-delegate"
+  info "kubectl delete namespace harness-delegate"
 else
-  helm uninstall "$DELEGATE_NAME" -n harness-delegate-ng 2>/dev/null || true
+  helm uninstall harness-delegate -n harness-delegate 2>/dev/null || true
+  kubectl delete namespace harness-delegate --ignore-not-found
 fi
 
 step "Project"

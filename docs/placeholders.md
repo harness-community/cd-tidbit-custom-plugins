@@ -10,9 +10,17 @@ Authoritative map of every `${VAR}` placeholder in `.harness/`: where its value 
 
 | Placeholder | `.env` key | Example | Consumed by (`.harness/` files) |
 |---|---|---|---|
-| `${HARNESS_ACCOUNT_ID}` | `HARNESS_ACCOUNT_ID` | `SAn9tg9eRrWyEJyLZ01ibw` | (fill in) |
-| `${HARNESS_ORG}` | `HARNESS_ORG` | `default` | (fill in) |
-| `${HARNESS_PROJECT}` | `HARNESS_PROJECT` | `custom-plugins` | (fill in) |
+| `${HARNESS_ACCOUNT_ID}` | `HARNESS_ACCOUNT_ID` | `SAn9tg9eRrWyEJyLZ01ibw` | `connector-github.yaml`, `connector-ghcr.yaml`, `connector-k8s.yaml` |
+| `${HARNESS_ORG}` | `HARNESS_ORG` | `default` | All `.harness/*.yaml` (including `build-plugin-pipeline.yaml`) |
+| `${HARNESS_PROJECT}` | `HARNESS_PROJECT` | `custom_plugins` | All `.harness/*.yaml` (including `build-plugin-pipeline.yaml`) |
+| `${DELEGATE_SELECTOR}` | `DELEGATE_SELECTOR` | `helm-delegate` | `connector-k8s.yaml` |
+| `${GITHUB_USERNAME}` | `GITHUB_USERNAME` | `stephen-w-pracy` | `connector-github.yaml`, `connector-ghcr.yaml`, `pipeline.yaml` (pipeline var `github_user`), `build-plugin-pipeline.yaml` (pipeline var `github_user`) |
+| `${GITHUB_REPO}` | `GITHUB_REPO` | `cd-tidbit-custom-plugins` | `connector-github.yaml` (URL) |
+| `${KANBOARD_PROJECT_ID}` | `KANBOARD_PROJECT_ID` | `1` | `pipeline.yaml` (pipeline var `kanboard_project_id`) |
+| `${KANBOARD_TASK_ID}` | `KANBOARD_TASK_ID` | `1` | `pipeline.yaml` (pipeline var `kanboard_task_id`) |
+| `${KANBOARD_COL_DEV}` | `KANBOARD_COL_DEV` | `2` | `environment-dev.yaml` (env var `column_id`) |
+| `${KANBOARD_COL_QA}` | `KANBOARD_COL_QA` | `3` | `environment-qa.yaml` (env var `column_id`) |
+| `${KANBOARD_COL_PROD}` | `KANBOARD_COL_PROD` | `4` | `environment-prod.yaml` (env var `column_id`) |
 
 ### `.env` keys with no `${VAR}` placeholder
 
