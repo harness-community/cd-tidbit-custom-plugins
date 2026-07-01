@@ -53,7 +53,7 @@ build-plugin-pipeline.yaml (build_plugin_pipeline)
 
 service.yaml (custom_plugins_demo)
 ├─ manifest store connectorRef: github              → connector-github.yaml
-└─ artifact source connectorRef: github             → connector-github.yaml
+└─ artifact source connectorRef: ghcrconn           → connector-ghcr.yaml
 
 infra-*.yaml (Dev_Infra | QA_Infra | Prod_Infra)
 └─ connectorRef: pipelinedemocluster                → connector-k8s.yaml
@@ -87,7 +87,7 @@ Three engines resolve tokens, in this order. They never overlap; knowing the own
 ### Where each appears
 
 - **`${VAR}` (envsubst):** account/org/project, delegate selector, GitHub username/repo, Kanboard project/task/column IDs. See [placeholders.md](placeholders.md) for the full list and which file consumes each.
-- **`<+...>` (Harness expressions):** appear in `pipeline.yaml` (`<+secrets.getValue(...)>`, `<+pipeline.variables.*>`, `<+env.variables.column_id>`), `service.yaml` (`<+env.name>` in valuesPaths, `<+input>` for artifact version), `infra-*.yaml` (`<+INFRA_KEY_SHORT_ID>` in releaseName).
+- **`<+...>` (Harness expressions):** appear in `pipeline.yaml` (`<+secrets.getValue(...)>`, `<+pipeline.variables.*>`, `<+env.variables.column_id>`, `<+pipeline.sequenceId>` for the artifact tag), `service.yaml` (`<+env.name>` in valuesPaths, `<+input>` for artifact tag), `k8s/<env>.yaml` (`<+artifact.tag>`, `<+artifact.image>`), `infra-*.yaml` (`<+INFRA_KEY_SHORT_ID>` in releaseName).
 - **`{{.Values.x}}` (Go templating):** appear in `k8s/deployment.yaml` etc.; values come from `k8s/<env>.yaml` (selected by `<+env.name>`).
 
 ---

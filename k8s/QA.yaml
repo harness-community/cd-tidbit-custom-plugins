@@ -2,5 +2,5 @@
 # Selected automatically when <+env.name> resolves to "QA".
 env_name: QA
 env_color: "#fd7e14"
-app_version: <+artifact.version>
+app_version: <+artifact.tag>
 image: <+artifact.image>
