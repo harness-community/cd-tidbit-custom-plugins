@@ -1,4 +1,4 @@
-.PHONY: validate cleanup port-forward port-forward-dev port-forward-prod build-local run-local
+.PHONY: validate cleanup port-forward port-forward-dev port-forward-prod
 
 validate:
 	./scripts/validate-setup.sh
@@ -16,9 +16,3 @@ port-forward-dev:
 
 port-forward-prod:
 	kubectl port-forward svc/custom-plugins-demo 8081:80 -n web-prod
-
-build-local:
-	docker build -t custom-plugins:local app/
-
-run-local:
-	docker run --rm -p 8080:8080 custom-plugins:local

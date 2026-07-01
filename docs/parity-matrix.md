@@ -55,7 +55,8 @@ When you change… | …re-check these
 ---|---
 `pipeline.yaml` stage/variable names or conditions | README controls table + "Run the Demo"; `video/script.md` acts; `video/production-spec.md` callouts; `specs/build.md` tables; `docs/resource-map.md` §2
 The plugin image (Dockerfile / entrypoint / version tag) | README "Prerequisites" + "Run the Demo"; `specs/build.md` Controls table; `video/script.md` Act 2; `video/production-spec.md` Act 2 shots
-A Kanboard column rename / project rename | `.env.example` (`KANBOARD_COL_*`); `setup.sh` Kanboard bootstrap block; `specs/build.md` Controls table; `video/script.md` Act 1+2 board-tour shots; parity §2 column names
+A Kanboard column rename / project rename | `.env.example` (`KANBOARD_COL_*`); `setup.sh` Kanboard bootstrap block (`KB_PROJECT_NAME`, `KB_COL_NAMES`); `specs/build.md` Controls table; `video/script.md` Act 1+2 board-tour shots; parity §2 column names
+The Kanboard bootstrap method (UI vs API, token source, ID source) | `scripts/setup.sh` Kanboard bootstrap block; `.env.example` Kanboard section + comments; `docs/placeholders.md` Kanboard rows; `README.md` "Setup" steps; `specs/build.md` Design Decisions "Kanboard bootstrap is non-interactive" bullet
 A `${VAR}` placeholder (add/remove/rename) | `docs/placeholders.md`; `.env.example`; `scripts/setup.sh` (`ENVSUBST_VARS`); the consuming `.harness/` file
 A resource identifier (rename) | `docs/resource-map.md` §1–2; every cross-referencing `.harness/` file; `scripts/setup.sh` (endpoint IDs)
 Number of stages (e.g. drop QA, add Staging) | README "Run the Demo" step count; `video/script.md` act count; `video/production-spec.md` act table; parity §2 beat count; `.harness/environment-*.yaml`, `infra-*.yaml`, `k8s/*.yaml`

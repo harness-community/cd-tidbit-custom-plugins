@@ -1,0 +1,217 @@
+pipeline:
+  name: Custom Plugins Pipeline
+  identifier: custom_plugins_pipeline
+  projectIdentifier: ${HARNESS_PROJECT}
+  orgIdentifier: ${HARNESS_ORG}
+  tags:
+    custom-plugins: ""
+  variables:
+    - name: github_user
+      type: String
+      description: GHCR namespace used in the plugin image path
+      value: ${GITHUB_USERNAME}
+    - name: plugin_image
+      type: String
+      description: Containerized plugin image
+      value: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-kanboard:latest
+    - name: kanboard_project_id
+      type: String
+      description: Kanboard project the plugin moves a task within
+      value: "${KANBOARD_PROJECT_ID}"
+    - name: kanboard_task_id
+      type: String
+      description: Kanboard task the plugin moves between columns
+      value: "${KANBOARD_TASK_ID}"
+  stages:
+    - stage:
+        name: Build App Image
+        identifier: Build_App_Image
+        description: Builds and pushes ghcr.io/<github_user>/custom-plugins-demo:<sequenceId>. The deploy stages consume that tag.
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push
+                  identifier: Build_and_Push
+                  spec:
+                    connectorRef: ghcrconn
+                    repo: ghcr.io/<+pipeline.variables.github_user>/custom-plugins-demo
+                    tags:
+                      - <+pipeline.sequenceId>
+                    caching: true
+                    dockerfile: app/Dockerfile
+                    context: app
+                    envVariables:
+                      PLUGIN_PLATFORM: linux/amd64,linux/arm64
+    - stage:
+        name: Deploy to Dev
+        identifier: Deploy_to_Dev
+        description: Roll the demo app into web-dev, then move the Kanboard card to the Dev column.
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: custom_plugins_demo
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: custom_plugins_demo
+                          type: DockerRegistry
+                          spec:
+                            tag: <+pipeline.sequenceId>
+          environment:
+            environmentRef: Dev
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: Dev_Infra
+          execution:
+            steps:
+              - step:
+                  type: K8sRollingDeploy
+                  name: Rolling Deploy
+                  identifier: Rolling_Deploy_Dev
+                  spec:
+                    skipDryRun: false
+                    pruningEnabled: false
+              - step:
+                  type: Plugin
+                  name: Notify Kanboard
+                  identifier: Notify_Kanboard_Dev
+                  spec:
+                    connectorRef: ghcrconn
+                    image: <+pipeline.variables.plugin_image>
+                    settings:
+                      KANBOARD_URL: <+secrets.getValue("kanboard_url")>
+                      KANBOARD_API_TOKEN: <+secrets.getValue("kanboard_api_token")>
+                      KANBOARD_PROJECT_ID: <+pipeline.variables.kanboard_project_id>
+                      KANBOARD_TASK_ID: <+pipeline.variables.kanboard_task_id>
+                      KANBOARD_COL: <+env.variables.column_id>
+            rollbackSteps:
+              - step:
+                  type: K8sRollingRollback
+                  name: Rollback
+                  identifier: Rollback_Dev
+                  spec: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+    - stage:
+        name: Deploy to QA
+        identifier: Deploy_to_QA
+        description: Roll the demo app into web-qa, then move the Kanboard card to the QA column.
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+          environment:
+            environmentRef: QA
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: QA_Infra
+          execution:
+            steps:
+              - step:
+                  type: K8sRollingDeploy
+                  name: Rolling Deploy
+                  identifier: Rolling_Deploy_QA
+                  spec:
+                    skipDryRun: false
+                    pruningEnabled: false
+              - step:
+                  type: Plugin
+                  name: Notify Kanboard
+                  identifier: Notify_Kanboard_QA
+                  spec:
+                    connectorRef: ghcrconn
+                    image: <+pipeline.variables.plugin_image>
+                    settings:
+                      KANBOARD_URL: <+secrets.getValue("kanboard_url")>
+                      KANBOARD_API_TOKEN: <+secrets.getValue("kanboard_api_token")>
+                      KANBOARD_PROJECT_ID: <+pipeline.variables.kanboard_project_id>
+                      KANBOARD_TASK_ID: <+pipeline.variables.kanboard_task_id>
+                      KANBOARD_COL: <+env.variables.column_id>
+            rollbackSteps:
+              - step:
+                  type: K8sRollingRollback
+                  name: Rollback
+                  identifier: Rollback_QA
+                  spec: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+    - stage:
+        name: Deploy to Prod
+        identifier: Deploy_to_Prod
+        description: Roll the demo app into web-prod, then move the Kanboard card to the Prod column.
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            useFromStage:
+              stage: Deploy_to_Dev
+          environment:
+            environmentRef: Prod
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: Prod_Infra
+          execution:
+            steps:
+              - step:
+                  type: K8sRollingDeploy
+                  name: Rolling Deploy
+                  identifier: Rolling_Deploy_Prod
+                  spec:
+                    skipDryRun: false
+                    pruningEnabled: false
+              - step:
+                  type: Plugin
+                  name: Notify Kanboard
+                  identifier: Notify_Kanboard_Prod
+                  spec:
+                    connectorRef: ghcrconn
+                    image: <+pipeline.variables.plugin_image>
+                    settings:
+                      KANBOARD_URL: <+secrets.getValue("kanboard_url")>
+                      KANBOARD_API_TOKEN: <+secrets.getValue("kanboard_api_token")>
+                      KANBOARD_PROJECT_ID: <+pipeline.variables.kanboard_project_id>
+                      KANBOARD_TASK_ID: <+pipeline.variables.kanboard_task_id>
+                      KANBOARD_COL: <+env.variables.column_id>
+            rollbackSteps:
+              - step:
+                  type: K8sRollingRollback
+                  name: Rollback
+                  identifier: Rollback_Prod
+                  spec: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+  properties:
+    ci:
+      codebase:
+        connectorRef: github
+        build: <+input>
+        sparseCheckout: []

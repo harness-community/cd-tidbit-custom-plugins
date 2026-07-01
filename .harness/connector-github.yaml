@@ -1,0 +1,27 @@
+connector:
+  name: custom-plugins-github
+  identifier: github
+  description: GitHub connector for the custom-plugins tidbit (manifest fetch + GHCR artifact metadata)
+  tags:
+    custom-plugins: ""
+  accountIdentifier: ${HARNESS_ACCOUNT_ID}
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  type: Github
+  spec:
+    url: https://github.com/${GITHUB_USERNAME}/${GITHUB_REPO}
+    authentication:
+      type: Http
+      spec:
+        type: UsernameToken
+        spec:
+          username: ${GITHUB_USERNAME}
+          tokenRef: ghcr_token
+    apiAccess:
+      type: Token
+      spec:
+        tokenRef: ghcr_token
+    executeOnDelegate: false
+    proxy: false
+    ignoreTestConnection: false
+    type: Repo

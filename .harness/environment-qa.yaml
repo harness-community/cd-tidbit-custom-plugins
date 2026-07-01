@@ -6,3 +6,8 @@ environment:
   type: PreProduction
   orgIdentifier: ${HARNESS_ORG}
   projectIdentifier: ${HARNESS_PROJECT}
+  variables:
+    - name: column_id
+      type: String
+      description: Kanboard column id this environment maps to
+      value: "${KANBOARD_COL_QA}"

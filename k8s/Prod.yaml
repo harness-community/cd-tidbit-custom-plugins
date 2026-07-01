@@ -2,5 +2,5 @@
 # Selected automatically when <+env.name> resolves to "Prod".
 env_name: Prod
 env_color: "#198754"
-app_version: <+artifact.version>
+app_version: <+artifact.tag>
 image: <+artifact.image>

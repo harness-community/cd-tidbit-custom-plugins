@@ -1,0 +1,21 @@
+connector:
+  name: custom-plugins-ghcr
+  identifier: ghcrconn
+  description: GHCR Docker registry connector — reads the demo app + plugin image metadata
+  tags:
+    custom-plugins: ""
+  accountIdentifier: ${HARNESS_ACCOUNT_ID}
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  type: DockerRegistry
+  spec:
+    dockerRegistryUrl: https://ghcr.io/${GITHUB_USERNAME}
+    providerType: Other
+    auth:
+      type: UsernamePassword
+      spec:
+        username: ${GITHUB_USERNAME}
+        passwordRef: ghcr_token
+    executeOnDelegate: false
+    proxy: false
+    ignoreTestConnection: false

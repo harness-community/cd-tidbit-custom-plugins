@@ -10,7 +10,7 @@ A Harness Technical Tidbit demonstrating **Custom Plugins** — a containerized 
 
 After completing this tidbit, you can:
 
-- Build a containerized Harness Plugin step from a Dockerfile.
+- Build a containerized Harness Plugin step from a Dockerfile in a Harness CI stage.
 - Push the plugin image to a registry (GHCR) and reference it from a pipeline.
 - Pass per-environment configuration to a single plugin image via env vars.
 - Inject Harness secrets into a Plugin step's environment.
@@ -18,10 +18,10 @@ After completing this tidbit, you can:
 
 ## Prerequisites
 
-- Harness account with permission to create Projects, Connectors, Secrets, Services, Environments, Infras, and Pipelines.
+- Harness account with permission to create Projects, Connectors, Secrets, Services, Environments, Infras, and Pipelines, and with Harness Cloud build credits available.
 - A Kubernetes cluster you can `kubectl` into (the Harness delegate, the demo app, and Kanboard all run here).
-- `docker`, `helm`, `kubectl`, `curl`, `envsubst`, `jq`, `yq` installed locally.
-- A GitHub account + a Personal Access Token with `read:packages` + `write:packages` (used both as a Harness secret and as the cluster's `ghcr-cred` imagePullSecret).
+- `helm`, `kubectl`, `curl`, `envsubst`, `jq`, `yq` installed locally. (No local `docker` — image builds run on Harness Cloud.)
+- A GitHub account + a Personal Access Token with `read:packages` + `write:packages` (used as a Harness secret for the GHCR connector and as the cluster's `ghcr-cred` imagePullSecret).
 
 ## Repository Structure
 
@@ -55,13 +55,11 @@ After completing this tidbit, you can:
 
 1. **Fork this repo** to your GitHub account.
 2. **Clone your fork** locally.
-3. **Copy `.env.example` to `.env`** and fill in your Harness and GitHub values. Leave the `KANBOARD_*` IDs blank for now.
-4. **Run `./scripts/setup.sh`** — creates namespaces, installs the Harness delegate, installs Kanboard via Helm, and provisions the Harness Project / Connectors / Service / Environments / Infras.
-5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`).
-6. **In Kanboard:** sign in (default admin / admin), generate an API token (My Profile → API), create a project called "Deployments" with columns Backlog / Dev / QA / Prod, and add one task in Backlog. Paste the token and IDs into `.env`.
-7. **Re-run `./scripts/setup.sh`** — creates the Kanboard-dependent Harness secrets (`kanboard_url`, `kanboard_api_token`) and the pipeline (which references them).
-8. **Build and push the plugin image:** `make build-plugin && make push-plugin` (logs in to GHCR with your `GITHUB_PAT`).
-9. **Run `make validate`** — pre-flight checks.
+3. **Copy `.env.example` to `.env`** and fill in your Harness and GitHub values. Leave the `KANBOARD_*` keys blank — `setup.sh` populates them.
+4. **Run `./scripts/setup.sh`** — creates namespaces, installs the Harness delegate, installs Kanboard via Helm, then bootstraps Kanboard non-interactively: a "Deployments" project is created with columns Backlog / Dev / QA / Prod and a single demo task in Backlog. A random `KANBOARD_API_TOKEN` is generated (injected into the Kanboard pod and into a Harness secret) and the project / column / task IDs are written back into `.env`. The script also provisions the Harness Project / Connectors / Service / Environments / Infras / Pipeline. Re-runs are no-ops.
+5. **Run `make port-forward`** — opens local ports to Dev / QA / Prod and to Kanboard (`http://127.0.0.1:8090`, default `admin` / `admin`). Your browser will likely flag the default password as compromised — safe to dismiss for this ephemeral demo cluster; the Kanboard install ships with this default and isn't reachable outside `localhost`.
+6. **Build the plugin image in Harness.** In the Harness UI, open the **Build Plugin Image** pipeline and click **Run**. The CI stage builds `ghcr.io/<your-user>/custom-plugins-kanboard:v1` on Harness Cloud and pushes it to GHCR. You only need to do this once (or again whenever `plugin/` changes).
+7. **Run `make validate`** — pre-flight checks.
 
 ## Run the Demo
 
@@ -71,9 +69,9 @@ The demo is a single pipeline run that marches through Dev → QA → Prod. As e
 
 Before running the pipeline, open three things side by side: the pipeline YAML view (showing the Plugin step's `settings`), `plugin/entrypoint.py`, and the Kanboard browser tab with the demo task sitting in **Backlog**.
 
-### Step 2 — Trigger the pipeline; watch the Dev stage
+### Step 2 — Trigger the pipeline; watch the Build, then the Dev stage
 
-Click **Run**. The Dev stage's Deploy step rolls out a new pod into `web-dev`; the Plugin step then moves the card from **Backlog → Dev**. Both should be visible: the Dev tab at `http://127.0.0.1:8080` shows the new badge, and Kanboard shows the card in the Dev column.
+Click **Run**. The first stage (**Build App Image**) runs on Harness Cloud, building `ghcr.io/<your-user>/custom-plugins-demo:<run-number>` and pushing it to GHCR. The Dev stage's Deploy step then rolls that tag out into `web-dev`; the Plugin step moves the card from **Backlog → Dev**. The Dev tab at `http://127.0.0.1:8080` shows the new badge and Kanboard shows the card in the Dev column.
 
 ### Step 3 — QA stage
 

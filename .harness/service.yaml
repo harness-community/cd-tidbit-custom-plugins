@@ -1,0 +1,39 @@
+service:
+  name: custom-plugins-demo
+  identifier: custom_plugins_demo
+  orgIdentifier: ${HARNESS_ORG}
+  projectIdentifier: ${HARNESS_PROJECT}
+  tags:
+    custom-plugins: ""
+  serviceDefinition:
+    spec:
+      manifests:
+        - manifest:
+            identifier: custom_plugins_manifests
+            type: K8sManifest
+            spec:
+              store:
+                type: Github
+                spec:
+                  connectorRef: github
+                  gitFetchType: Branch
+                  paths:
+                    - k8s/deployment.yaml
+                    - k8s/service.yaml
+                    - k8s/configmap.yaml
+                  branch: main
+              valuesPaths:
+                - k8s/<+env.name>.yaml
+              skipResourceVersioning: false
+              enableDeclarativeRollback: false
+      artifacts:
+        primary:
+          primaryArtifactRef: custom_plugins_demo
+          sources:
+            - identifier: custom_plugins_demo
+              type: DockerRegistry
+              spec:
+                connectorRef: ghcrconn
+                imagePath: ${GITHUB_USERNAME}/custom-plugins-demo
+                tag: <+input>
+    type: Kubernetes
