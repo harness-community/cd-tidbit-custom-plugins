@@ -48,7 +48,10 @@ pipeline:
                     tags:
                       - <+pipeline.sequenceId>
                     caching: true
+                    dockerfile: app/Dockerfile
                     context: app
+                    envVariables:
+                      PLUGIN_PLATFORM: linux/amd64,linux/arm64
     - stage:
         name: Deploy to Dev
         identifier: Deploy_to_Dev

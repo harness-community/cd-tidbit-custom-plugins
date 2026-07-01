@@ -40,6 +40,8 @@ pipeline:
                     caching: true
                     dockerfile: plugin/Dockerfile
                     context: plugin
+                    envVariables:
+                      PLUGIN_PLATFORM: linux/amd64,linux/arm64
   properties:
     ci:
       codebase:
