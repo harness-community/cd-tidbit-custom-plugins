@@ -40,7 +40,7 @@ Read this aloud while performing the actions described in brackets. Each act map
 
 >
 
-> (Open the **Build Plugin Image** pipeline in the Harness UI. Point at the single CI stage and its `BuildAndPushDockerRegistry` step. Call out that the Dockerfile we just looked at is exactly what gets built here — on Harness Cloud, no local docker required. Mention the immutable `v1` tag. Trigger a Run if the image hasn't been built yet; otherwise just point at the most recent green execution.)
+> (Open the **Build Kanboard Plugin** pipeline in the Harness UI. Point at the single CI stage and its `BuildAndPushDockerRegistry` step. Call out that the Dockerfile we just looked at is exactly what gets built here — on Harness Cloud, no local docker required. Mention the immutable `v1` tag. Trigger a Run if the image hasn't been built yet; otherwise just point at the most recent green execution.)
 
 **[On-screen action]**
 
@@ -52,7 +52,7 @@ Read this aloud while performing the actions described in brackets. Each act map
 
 >
 
-> (Click Run on the **Custom Plugins Pipeline**. Open the execution view. First stage is **Build App Image** — a CI stage that builds and pushes `ghcr.io/<you>/custom-plugins-demo:<run-number>` on Harness Cloud. Show the tag in the build logs. Then the pipeline advances to the Dev Deploy step — show the Dev browser tab updating to the new badge.)
+> (Click Run on the **Build and Deploy Demo App** pipeline. Open the execution view. First stage is **Build App Image** — a CI stage that builds and pushes `ghcr.io/<you>/custom-plugins-demo:<run-number>` on Harness Cloud. Show the tag in the build logs. Then the pipeline advances to the Dev Deploy step — show the Dev browser tab updating to the new badge.)
 
 >
 

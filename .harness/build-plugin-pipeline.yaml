@@ -1,6 +1,6 @@
 pipeline:
-  name: Build Plugin Image
-  identifier: build_plugin_pipeline
+  name: Build Kanboard Plugin
+  identifier: build_kanboard_plugin
   projectIdentifier: ${HARNESS_PROJECT}
   orgIdentifier: ${HARNESS_ORG}
   description: Builds and pushes the Kanboard plugin image to GHCR. Run once after setup, and again whenever plugin/ changes.
