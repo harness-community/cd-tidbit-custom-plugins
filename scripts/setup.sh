@@ -409,9 +409,10 @@ else
   fi
 
   # Step 4: write captured IDs back into .env (only blank keys are filled).
+  # Backlog column id is not persisted — the plugin only ever moves the task
+  # to Dev/QA/Prod, and "reset the demo" means dragging the card back manually.
   env_write KANBOARD_PROJECT_ID "$KB_PROJ_ID"
   env_write KANBOARD_TASK_ID    "$TASK_ID"
-  env_write KANBOARD_COL_BACKLOG "$COL_Backlog_ID"
   env_write KANBOARD_COL_DEV     "$COL_Dev_ID"
   env_write KANBOARD_COL_QA      "$COL_QA_ID"
   env_write KANBOARD_COL_PROD    "$COL_Prod_ID"
@@ -499,15 +500,15 @@ step "Pipelines"
 # YAML body (no JSON envelope), Content-Type: application/yaml. Update path
 # also differs: PUT /pipeline/api/pipelines/<identifier>.
 BUILD_PLUGIN_YAML="$(render "$HARNESS_DIR/build-plugin-pipeline.yaml")"
-upsert "Pipeline build_plugin_pipeline" \
+upsert "Pipeline build_kanboard_plugin" \
   "$BASE_URL/pipeline/api/pipelines/v2?$ACCT&$ORG&$PROJ" \
-  "$BASE_URL/pipeline/api/pipelines/build_plugin_pipeline?$ACCT&$ORG&$PROJ" \
+  "$BASE_URL/pipeline/api/pipelines/build_kanboard_plugin?$ACCT&$ORG&$PROJ" \
   "application/yaml" "$BUILD_PLUGIN_YAML"
 
 PIPELINE_YAML="$(render "$HARNESS_DIR/pipeline.yaml")"
-upsert "Pipeline custom_plugins_pipeline" \
+upsert "Pipeline build_and_deploy_demo_app" \
   "$BASE_URL/pipeline/api/pipelines/v2?$ACCT&$ORG&$PROJ" \
-  "$BASE_URL/pipeline/api/pipelines/custom_plugins_pipeline?$ACCT&$ORG&$PROJ" \
+  "$BASE_URL/pipeline/api/pipelines/build_and_deploy_demo_app?$ACCT&$ORG&$PROJ" \
   "application/yaml" "$PIPELINE_YAML"
 
 echo
