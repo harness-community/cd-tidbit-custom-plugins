@@ -1,6 +1,6 @@
 pipeline:
-  name: Custom Plugins Pipeline
-  identifier: custom_plugins_pipeline
+  name: Build and Deploy Demo App
+  identifier: build_and_deploy_demo_app
   projectIdentifier: ${HARNESS_PROJECT}
   orgIdentifier: ${HARNESS_ORG}
   tags:

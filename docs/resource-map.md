@@ -12,8 +12,9 @@ Every Harness resource has a stable **identifier** (account-independent — thes
 
 | Resource | File | `identifier` | `name` |
 |---|---|---|---|
-| Pipeline | `.harness/pipeline.yaml` | `custom_plugins_pipeline` | `Custom Plugins Pipeline` |
-| Pipeline (CI) | `.harness/build-plugin-pipeline.yaml` | `build_plugin_pipeline` | `Build Plugin Image` |
+| Project | created inline in `setup.sh` (via `.env`'s `HARNESS_PROJECT`) | `custom_plugins` | `custom_plugins` |
+| Pipeline | `.harness/pipeline.yaml` | `build_and_deploy_demo_app` | `Build and Deploy Demo App` |
+| Pipeline (CI) | `.harness/build-plugin-pipeline.yaml` | `build_kanboard_plugin` | `Build Kanboard Plugin` |
 | Service | `.harness/service.yaml` | `custom_plugins_demo` | `custom-plugins-demo` |
 | Environment (Dev) | `.harness/environment-dev.yaml` | `Dev` | `Dev` |
 | Environment (QA) | `.harness/environment-qa.yaml` | `QA` | `QA` |
@@ -38,7 +39,7 @@ Every Harness resource has a stable **identifier** (account-independent — thes
 ## 2. Reference graph (who points at whom)
 
 ```
-pipeline.yaml (custom_plugins_pipeline)
+pipeline.yaml (build_and_deploy_demo_app)
 ├─ Build_App_Image step connectorRef: ghcrconn      → connector-ghcr.yaml
 ├─ properties.ci.codebase.connectorRef: github      → connector-github.yaml
 ├─ serviceRef: custom_plugins_demo                  → service.yaml
@@ -47,7 +48,7 @@ pipeline.yaml (custom_plugins_pipeline)
 ├─ Plugin step image / connectorRef: ghcrconn       → connector-ghcr.yaml
 └─ <+secrets.getValue("kanboard_url" | …)>          → text secrets created in setup.sh
 
-build-plugin-pipeline.yaml (build_plugin_pipeline)
+build-plugin-pipeline.yaml (build_kanboard_plugin)
 ├─ Build_and_Push step connectorRef: ghcrconn       → connector-ghcr.yaml
 └─ properties.ci.codebase.connectorRef: github      → connector-github.yaml
 
@@ -99,3 +100,8 @@ Three engines resolve tokens, in this order. They never overlap; knowing the own
 **"Which file feeds this `${VAR}`?"** — see [placeholders.md](placeholders.md).
 
 **"If I edit a demo step, what else changes?"** — see [parity-matrix.md](parity-matrix.md).
+
+**"Which secret does what?"**
+- `ghcr_token` — the GitHub PAT. `connector-github.yaml` uses it as `tokenRef` (and `apiAccess.tokenRef`) so Harness can fetch the pipeline codebase; `connector-ghcr.yaml` uses it as `passwordRef` so the CI stage can push the app image and the plugin container can be pulled at run time.
+- `kanboard_url` — the in-cluster JSON-RPC endpoint the plugin talks to. Injected into the Plugin step's `settings:` via `<+secrets.getValue("kanboard_url")>`.
+- `kanboard_api_token` — the API token the plugin authenticates with (as the reserved `jsonrpc` user). Same value is present in the Kanboard pod as `API_AUTHENTICATION_TOKEN`, injected by the Helm chart via `application.env[]`.
